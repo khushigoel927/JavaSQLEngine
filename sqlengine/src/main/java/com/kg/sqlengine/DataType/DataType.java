@@ -1,6 +1,6 @@
 package com.kg.sqlengine.DataType;
 
-public enum dataType {
+public enum DataType {
     INT,
     FLOAT,
     STRING

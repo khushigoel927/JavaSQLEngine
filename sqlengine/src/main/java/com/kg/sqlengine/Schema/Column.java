@@ -1,11 +1,11 @@
 package com.kg.sqlengine.Schema;
-import com.kg.sqlengine.DataType.dataType;
+import com.kg.sqlengine.DataType.DataType;
 
 public class Column {
     public final String name;
-    public final dataType type;
+    public final DataType type;
 
-    public Column(String name, dataType type) {
+    public Column(String name, DataType type) {
         this.name = name;
         this.type = type;
     }
