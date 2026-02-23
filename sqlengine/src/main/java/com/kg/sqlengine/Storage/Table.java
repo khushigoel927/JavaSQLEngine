@@ -65,5 +65,8 @@ public class Table {
             default: throw new RuntimeException("Invalid operator");
         }
     }
+    public List<Row> getRows() {
+        return Collections.unmodifiableList(rows);
+    }
 }
 
