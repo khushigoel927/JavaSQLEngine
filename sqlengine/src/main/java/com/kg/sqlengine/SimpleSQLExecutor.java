@@ -29,6 +29,9 @@ public class SimpleSQLExecutor {
         else if (sql.toUpperCase().startsWith("SELECT")) {
             handleSelect(sql);
         }
+        else if (sql.toUpperCase().startsWith("DELETE FROM")) {
+            handleDelete(sql);
+        }
         else {
             System.out.println("Unsupported command.");
         }
@@ -70,10 +73,12 @@ public class SimpleSQLExecutor {
         for (String val : valuesRaw) {
             val = val.trim();
 
-            if (val.startsWith("'") && val.endsWith("'")) {
+            if ((val.startsWith("'") && val.endsWith("'")) ||
+                    (val.startsWith("\"") && val.endsWith("\""))) {
+
                 values.add(val.substring(1, val.length() - 1));
-            }
-            else {
+
+            } else {
                 values.add(Integer.parseInt(val));
             }
         }
@@ -105,7 +110,8 @@ public class SimpleSQLExecutor {
 
             String val = parts[2].replace(";", "");
 
-            if (val.startsWith("'") && val.endsWith("'")) {
+            if ((val.startsWith("'") && val.endsWith("'")) ||
+                    (val.startsWith("\"") && val.endsWith("\""))) {
                 whereValue = val.substring(1, val.length() - 1);
             }
             else {
@@ -120,5 +126,40 @@ public class SimpleSQLExecutor {
             System.out.println(row.get(column));
         }
     }
-}
 
+    // new: handle DELETE statements
+    private void handleDelete(String sql) {
+
+        // supports:
+        // DELETE FROM students WHERE age > 20;
+        // DELETE FROM students;
+
+        String upper = sql.toUpperCase();
+        String[] tokens = sql.split("\\s+");
+        String tableName = tokens[2];
+
+        String whereColumn = null;
+        String operator = null;
+        Object whereValue = null;
+
+        if (upper.contains("WHERE")) {
+            String wherePart = sql.substring(upper.indexOf("WHERE") + 5).trim();
+            String[] parts = wherePart.split("\\s+");
+
+            whereColumn = parts[0];
+            operator = parts[1];
+
+            String val = parts[2].replace(";", "").trim();
+
+            if (val.startsWith("'") && val.endsWith("'")) {
+                whereValue = val.substring(1, val.length() - 1);
+            }
+            else {
+                whereValue = Integer.parseInt(val);
+            }
+        }
+
+        int deleted = db.getTable(tableName).delete(whereColumn, operator, whereValue);
+        System.out.println("Rows deleted: " + deleted);
+    }
+}

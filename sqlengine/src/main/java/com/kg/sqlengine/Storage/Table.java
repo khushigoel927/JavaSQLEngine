@@ -53,6 +53,10 @@ public class Table {
     }
     private boolean evaluate(Row row, String col, String op, Object value) {
 
+        if (col == null) {
+            return true;
+        }
+
         Comparable rowValue = (Comparable) row.get(col);
         Comparable compareValue = (Comparable) value;
 
@@ -65,8 +69,29 @@ public class Table {
             default: throw new RuntimeException("Invalid operator");
         }
     }
+    public int delete(String whereColumn, String operator, Object whereValue) {
+
+        // DELETE FROM table; → remove all rows
+        if (whereColumn == null) {
+            int removed = rows.size();
+            rows.clear();
+            return removed;
+        }
+
+        Iterator<Row> it = rows.iterator();
+        int removed = 0;
+
+        while (it.hasNext()) {
+            Row row = it.next();
+
+            if (evaluate(row, whereColumn, operator, whereValue)) {
+                it.remove();
+                removed++;
+            }
+        }
+        return removed;
+    }
     public List<Row> getRows() {
         return Collections.unmodifiableList(rows);
     }
 }
-
