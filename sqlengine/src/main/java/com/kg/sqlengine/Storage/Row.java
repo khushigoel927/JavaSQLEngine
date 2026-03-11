@@ -1,6 +1,8 @@
 package com.kg.sqlengine.Storage;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.LinkedHashSet;
 
 public class Row {
 
@@ -17,5 +19,10 @@ public class Row {
     public Map<String, Object> getAll() {
         return values;
     }
-}
 
+    // new: expose column names (stable iteration order)
+    public Set<String> getColumns() {
+        return new LinkedHashSet<>(values.keySet());
+    }
+
+}

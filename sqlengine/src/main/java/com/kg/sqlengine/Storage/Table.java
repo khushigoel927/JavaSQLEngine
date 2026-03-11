@@ -91,6 +91,38 @@ public class Table {
         }
         return removed;
     }
+    public List<Row> join(Table other,
+                          String thisColumn,
+                          String otherColumn) {
+
+        List<Row> result = new ArrayList<>();
+
+        for (Row row1 : rows) {
+            Object value1 = row1.get(thisColumn);
+
+            for (Row row2 : other.getRows()) {
+                Object value2 = row2.get(otherColumn);
+
+                if (value1.equals(value2)) {
+
+                    Row combined = new Row();
+
+                    // prefix columns with table name to avoid collisions
+                    for (String col : row1.getColumns()) {
+                        combined.set(this.name + "." + col, row1.get(col));
+                    }
+
+                    for (String col : row2.getColumns()) {
+                        combined.set(other.name + "." + col, row2.get(col));
+                    }
+
+                    result.add(combined);
+                }
+            }
+        }
+
+        return result;
+    }
     public List<Row> getRows() {
         return Collections.unmodifiableList(rows);
     }

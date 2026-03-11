@@ -4,6 +4,7 @@ import com.kg.sqlengine.DataType.DataType;
 import com.kg.sqlengine.Schema.Column;
 import com.kg.sqlengine.Storage.Database;
 import com.kg.sqlengine.Storage.Row;
+import com.kg.sqlengine.Storage.Table;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -73,7 +74,7 @@ public class SimpleSQLExecutor {
         for (String val : valuesRaw) {
             val = val.trim();
 
-            if ((val.startsWith("'") && val.endsWith("'")) ||
+            if ((val.startsWith("'") && val.endsWith("'") ) ||
                     (val.startsWith("\"") && val.endsWith("\""))) {
 
                 values.add(val.substring(1, val.length() - 1));
@@ -90,8 +91,118 @@ public class SimpleSQLExecutor {
     private void handleSelect(String sql) {
 
         // SELECT name FROM students WHERE age > 20;
+        // SELECT c.name FROM students INNER JOIN classes ON students.class_id = classes.id WHERE classes.id = 2;
 
         String upper = sql.toUpperCase();
+
+        // detect JOIN
+        if (upper.contains(" JOIN ")) {
+
+            // naive parsing for: SELECT <col> FROM <left> INNER JOIN <right> ON <left>.<colA> = <right>.<colB> [WHERE ...];
+            String selectPart = sql.substring(0, upper.indexOf("FROM")).trim();
+            String column = selectPart.split("\\s+")[1];
+
+            // get from/join/etc
+            String afterFrom = sql.substring(upper.indexOf("FROM") + 4).trim();
+
+            // expect: <left> INNER JOIN <right> ON <cond> [WHERE ...]
+            String[] parts = afterFrom.split("\\s+", 5);
+            String leftTable = parts[0];
+            // parts[1] should be INNER
+            // parts[2] should be JOIN
+            String rightTable = parts[3];
+
+            // find ON clause
+            int onIdx = upper.indexOf(" ON ");
+            if (onIdx == -1) {
+                throw new RuntimeException("Malformed JOIN: missing ON");
+            }
+
+            String onPart = sql.substring(onIdx + 4).trim();
+            String onCond = onPart.split("\\s+")[0];
+
+            // onCond expected: left.col = right.col
+            String[] onSides = onCond.split("=");
+            if (onSides.length != 2) {
+                throw new RuntimeException("Malformed ON condition");
+            }
+
+            String leftSide = onSides[0].trim();
+            String rightSide = onSides[1].trim();
+
+            // remove possible trailing commas/semicolons
+            leftSide = leftSide.replaceAll(";", "");
+            rightSide = rightSide.replaceAll(";", "");
+
+            String leftJoinCol = leftSide.contains(".") ? leftSide.split("\\.")[1] : leftSide;
+            String rightJoinCol = rightSide.contains(".") ? rightSide.split("\\.")[1] : rightSide;
+
+            Table lt = db.getTable(leftTable);
+            Table rt = db.getTable(rightTable);
+
+            List<Row> joined = lt.join(rt, leftJoinCol, rightJoinCol);
+
+            // optional WHERE parsing
+            String whereColumn = null;
+            String operator = null;
+            Object whereValue = null;
+
+            if (upper.contains("WHERE")) {
+                String wherePart = sql.substring(upper.indexOf("WHERE") + 5).trim();
+                String[] wparts = wherePart.split("\\s+");
+                whereColumn = wparts[0].replaceAll(";", "");
+                operator = wparts[1];
+                whereValue = parseValue(wparts[2].replaceAll(";", ""));
+            }
+
+            // filter joined rows if WHERE present
+            List<Row> filtered = new ArrayList<>();
+            for (Row r : joined) {
+                if (whereColumn == null) {
+                    filtered.add(r);
+                } else {
+                    Object val = r.get(whereColumn.contains(".") ? whereColumn : (leftTable + "." + whereColumn));
+                    if (val == null) {
+                        val = r.get(rightTable + "." + whereColumn);
+                    }
+                    if (val == null) {
+                        throw new RuntimeException("Unknown column in WHERE: " + whereColumn);
+                    }
+
+                    Comparable rowValue = (Comparable) val;
+                    Comparable cmpValue = (Comparable) whereValue;
+                    int cmp = rowValue.compareTo(cmpValue);
+                    boolean ok = false;
+                    switch (operator) {
+                        case "=": ok = cmp == 0; break;
+                        case ">": ok = cmp > 0; break;
+                        case "<": ok = cmp < 0; break;
+                        default: throw new RuntimeException("Invalid operator");
+                    }
+                    if (ok) filtered.add(r);
+                }
+            }
+
+            // print selected column for each filtered row
+            for (Row r : filtered) {
+                Object out;
+                if (column.contains(".")) {
+                    out = r.get(column);
+                } else {
+                    // try leftTable.col then rightTable.col
+                    out = r.get(leftTable + "." + column);
+                    if (out == null) out = r.get(rightTable + "." + column);
+                }
+
+                if (out == null) {
+                    throw new RuntimeException("Unknown column in SELECT: " + column);
+                }
+
+                System.out.println(out);
+            }
+
+            return;
+        }
 
         String column = sql.split("\\s+")[1];
         String tableName = sql.split("\\s+")[3];
@@ -125,6 +236,16 @@ public class SimpleSQLExecutor {
         for (Row row : results) {
             System.out.println(row.get(column));
         }
+    }
+
+    // helper to parse a literal value
+    private Object parseValue(String val) {
+        val = val.trim();
+        if ((val.startsWith("'") && val.endsWith("'")) ||
+                (val.startsWith("\"") && val.endsWith("\""))) {
+            return val.substring(1, val.length() - 1);
+        }
+        return Integer.parseInt(val);
     }
 
     // new: handle DELETE statements
